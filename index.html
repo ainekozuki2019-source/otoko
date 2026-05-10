@@ -37,9 +37,8 @@
 
         let net;
         const template = new Image();
-        template.src = 'template.png'; // 以前保存した背景画像
+        template.src = 'template.png';
 
-        // AIモデルの初期化
         async function init() {
             try {
                 net = await bodyPix.load();
@@ -66,12 +65,11 @@
         });
 
         async function process(userImg) {
-            // キャンバスサイズをテンプレートに固定
             canvas.width = template.width;
             canvas.height = template.height;
             canvas.style.display = 'inline-block';
 
-            // 1. 人物の切り抜き実行
+            // 1. 人物切り抜き
             const segmentation = await net.segmentPerson(userImg);
             const maskCanvas = document.createElement('canvas');
             maskCanvas.width = userImg.width;
@@ -82,34 +80,34 @@
             const imgData = mCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
             for (let i = 0; i < segmentation.data.length; i++) {
                 if (segmentation.data[i] === 0) {
-                    imgData.data[i * 4 + 3] = 0; // 背景を完全透明化
+                    imgData.data[i * 4 + 3] = 0;
                 }
             }
             mCtx.putImageData(imgData, 0, 0);
 
-            // 2. 描画開始
+            // 2. 描画
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(template, 0, 0); // まず背景を描画
+            ctx.drawImage(template, 0, 0);
 
             const offscreen = document.createElement('canvas');
             offscreen.width = canvas.width;
             offscreen.height = canvas.height;
             const oCtx = offscreen.getContext('2d');
 
-            // --- 劇画エフェクト (人物を大きく、質感を強く) ---
+            // 劇画エフェクト
             oCtx.filter = 'grayscale(100%) contrast(450%) brightness(95%)';
             
-            // ★サイズ調整: 画面幅の85%まで拡大
+            // サイズ調整: 画面幅の85%
             const drawW = canvas.width * 0.85;
             const drawH = (userImg.height / userImg.width) * drawW;
             const drawX = (canvas.width - drawW) / 2;
             
-            // ★位置調整: 空の低め（群衆に近い位置）に配置
-            const drawY = canvas.height * 0.32;
+            // ★位置調整: 上から20%の位置に修正
+            const drawY = canvas.height * 0.20;
 
             oCtx.drawImage(maskCanvas, drawX, drawY, drawW, drawH);
 
-            // --- 網点（スクリーントーン）加工 ---
+            // 網点加工
             oCtx.globalCompositeOperation = 'multiply';
             const pCanvas = document.createElement('canvas');
             pCanvas.width = 3; pCanvas.height = 3;
@@ -119,21 +117,20 @@
             oCtx.fillStyle = oCtx.createPattern(pCanvas, 'repeat');
             oCtx.fillRect(drawX, drawY, drawW, drawH);
 
-            // --- 最終合成: 不透明度65%の幻影として重ねる ---
+            // 最終合成: 不透明度65%
             ctx.globalAlpha = 0.65;
             ctx.drawImage(offscreen, 0, 0);
             ctx.globalAlpha = 1.0;
 
-            status.innerText = "完成！漢たちが偲んでいます";
+            status.innerText = "完成！";
             downloadBtn.style.display = 'block';
             
-            // 生成後に画面を少しスクロール
             window.scrollTo({ top: 300, behavior: 'smooth' });
         }
 
         downloadBtn.onclick = () => {
             const link = document.createElement('a');
-            link.download = 'memorial_gekiga.png';
+            link.download = 'memorial.png';
             link.href = canvas.toDataURL('image/png');
             link.click();
         };
