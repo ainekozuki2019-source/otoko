@@ -26,6 +26,81 @@
     <button id="downloadBtn">画像を保存する</button>
 
     <script>
+        <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix"></script>
+
+<script>
+    // ...（中略：canvasやuploadの定義）...
+
+    let net;
+    // AIモデルを事前に読み込む
+    async function loadModel() {
+        net = await bodyPix.load();
+        console.log("Model Loaded!");
+    }
+    loadModel();
+
+    async function generateSynthesis(userImg) {
+        canvas.width = template.width;
+        canvas.height = template.height;
+        ctx.drawImage(template, 0, 0);
+
+        // --- 人物切り抜き処理 ---
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = userImg.width;
+        tempCanvas.height = userImg.height;
+        const tCtx = tempCanvas.getContext('2d');
+        
+        // 人物のセグメンテーション（判定）を実行
+        const segmentation = await net.segmentPerson(userImg);
+        
+        // マスク作成（人物の部分だけ残す）
+        const imageData = tCtx.createImageData(userImg.width, userImg.height);
+        tCtx.drawImage(userImg, 0, 0);
+        const originalData = tCtx.getImageData(0, 0, userImg.width, userImg.height);
+        
+        for (let i = 0; i < segmentation.data.length; i++) {
+            // segmentation.data[i] が 1 なら人物、0 なら背景
+            if (segmentation.data[i] === 0) {
+                originalData.data[i * 4 + 3] = 0; // 背景を透明にする
+            }
+        }
+        tCtx.putImageData(originalData, 0, 0);
+
+        // --- 以降、加工処理 ---
+        const offscreen = document.createElement('canvas');
+        const oCtx = offscreen.getContext('2d');
+        offscreen.width = canvas.width;
+        offscreen.height = canvas.height;
+
+        oCtx.filter = 'grayscale(100%) contrast(400%) brightness(90%)';
+        
+        const drawW = canvas.width * 0.55;
+        const drawH = (userImg.height / userImg.width) * drawW; // 比率維持
+        const drawX = (canvas.width - drawW) / 2;
+        const drawY = canvas.height * 0.12;
+
+        // 背景が消えた tempCanvas を描画
+        oCtx.drawImage(tempCanvas, drawX, drawY, drawW, drawH);
+
+        // スクリーントーン処理
+        oCtx.globalCompositeOperation = 'multiply';
+        const patternCanvas = document.createElement('canvas');
+        const pCtx = patternCanvas.getContext('2d');
+        patternCanvas.width = 3; patternCanvas.height = 3;
+        pCtx.fillStyle = '#bbb';
+        pCtx.fillRect(0,0,1,1);
+        oCtx.fillStyle = oCtx.createPattern(patternCanvas, 'repeat');
+        oCtx.fillRect(drawX, drawY, drawW, drawH);
+
+        // メインへ合成
+        ctx.globalAlpha = 0.65;
+        ctx.drawImage(offscreen, 0, 0);
+        ctx.globalAlpha = 1.0;
+
+        downloadBtn.style.display = 'block';
+    }
+</script>
         const upload = document.getElementById('upload');
         const canvas = document.getElementById('mainCanvas');
         const ctx = canvas.getContext('2d');
