@@ -11,17 +11,29 @@
         .controls { background: #222; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #333; }
         canvas { max-width: 100%; height: auto; border: 2px solid #333; display: none; box-shadow: 0 0 30px rgba(0,0,0,0.8); }
         #status { margin: 15px; color: #00ff00; font-weight: bold; font-size: 0.9rem; min-height: 1.2em; }
+        
+        /* ボタンコンテナ */
+        .button-group { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+
         .file-upload-label {
             display: inline-block;
-            padding: 15px 25px;
+            padding: 12px 20px;
             background: #444;
             color: #fff;
-            border-radius: 50px;
+            border-radius: 8px;
             cursor: pointer;
             font-weight: bold;
             border: 2px solid #666;
+            font-size: 0.9rem;
+            flex: 1;
+            min-width: 140px;
+            max-width: 200px;
         }
+        /* カメラボタンは少し強調 */
+        .btn-camera { background: #555; border-color: #888; }
+        
         input[type="file"] { display: none; }
+        
         #downloadBtn { 
             display: none; 
             margin: 20px auto; 
@@ -41,11 +53,19 @@
     <h1>在りし日の幻影メーカー</h1>
     
     <div class="controls">
-        <div id="status">AI準備中... (数秒かかります)</div>
-        <label class="file-upload-label" id="uploadLabel" style="opacity: 0.5; pointer-events: none;">
-            📸 写真を撮る / 選ぶ
-            <input type="file" id="upload" accept="image/*" capture="camera">
-        </label>
+        <div id="status">AI準備中...</div>
+        
+        <div class="button-group" id="btnGroup" style="opacity: 0.5; pointer-events: none;">
+            <label class="file-upload-label btn-camera">
+                📸 今すぐ撮影
+                <input type="file" class="upload-input" accept="image/*" capture="camera">
+            </label>
+            
+            <label class="file-upload-label">
+                📁 画像を選択
+                <input type="file" class="upload-input" accept="image/*">
+            </label>
+        </div>
     </div>
 
     <canvas id="mainCanvas"></canvas>
@@ -53,8 +73,8 @@
     <button id="downloadBtn">この画像を保存する</button>
 
     <script>
-        const upload = document.getElementById('upload');
-        const uploadLabel = document.getElementById('uploadLabel');
+        const inputs = document.querySelectorAll('.upload-input');
+        const btnGroup = document.getElementById('btnGroup');
         const canvas = document.getElementById('mainCanvas');
         const ctx = canvas.getContext('2d');
         const status = document.getElementById('status');
@@ -68,26 +88,29 @@
             try {
                 net = await bodyPix.load();
                 status.innerText = "準備完了！";
-                uploadLabel.style.opacity = "1.0";
-                uploadLabel.style.pointerEvents = "auto";
+                btnGroup.style.opacity = "1.0";
+                btnGroup.style.pointerEvents = "auto";
             } catch (e) {
                 status.innerText = "エラー: 再読み込みしてください";
             }
         }
         init();
 
-        upload.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            
-            status.innerText = "漢たちの空へ召喚中...";
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const userImg = new Image();
-                userImg.onload = () => process(userImg);
-                userImg.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
+        // 全てのinputに対してイベントを設定
+        inputs.forEach(input => {
+            input.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                status.innerText = "漢たちの空へ召喚中...";
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const userImg = new Image();
+                    userImg.onload = () => process(userImg);
+                    userImg.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
         });
 
         async function process(userImg) {
@@ -120,7 +143,6 @@
 
             oCtx.filter = 'grayscale(100%) contrast(450%) brightness(95%)';
             
-            // レイアウト設定: 画面幅85% / 上から5%の位置
             const drawW = canvas.width * 0.85;
             const drawH = (userImg.height / userImg.width) * drawW;
             const drawX = (canvas.width - drawW) / 2;
