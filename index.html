@@ -8,10 +8,12 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix"></script>
     <style>
         body { background: #111; color: white; text-align: center; font-family: sans-serif; margin: 0; padding: 20px; }
-        .controls { background: #222; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
-        canvas { max-width: 100%; height: auto; border: 2px solid #333; display: none; }
-        #status { margin: 10px; color: #aaa; }
-        #downloadBtn { display: none; margin: 20px auto; padding: 12px 24px; background: #fff; color: #000; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        .controls { background: #222; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #333; }
+        canvas { max-width: 100%; height: auto; border: 2px solid #333; display: none; box-shadow: 0 0 30px rgba(0,0,0,0.8); }
+        #status { margin: 15px; color: #00ff00; font-weight: bold; font-size: 0.9rem; }
+        input[type="file"] { margin: 10px 0; }
+        #downloadBtn { display: none; margin: 20px auto; padding: 15px 30px; background: #fff; color: #000; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 1rem; }
+        #downloadBtn:hover { background: #ccc; }
     </style>
 </head>
 <body>
@@ -23,7 +25,8 @@
     </div>
 
     <canvas id="mainCanvas"></canvas>
-    <button id="downloadBtn">画像を保存する</button>
+    <br>
+    <button id="downloadBtn">この画像を保存する</button>
 
     <script>
         const upload = document.getElementById('upload');
@@ -34,13 +37,17 @@
 
         let net;
         const template = new Image();
-        template.src = 'template.png';
+        template.src = 'template.png'; // 以前保存した背景画像
 
-        // AIモデルの読み込み
+        // AIモデルの初期化
         async function init() {
-            net = await bodyPix.load();
-            status.innerText = "準備完了！写真をアップロードしてください";
-            upload.disabled = false;
+            try {
+                net = await bodyPix.load();
+                status.innerText = "準備完了！写真をアップロードしてください";
+                upload.disabled = false;
+            } catch (e) {
+                status.innerText = "AIの読み込みに失敗しました。再読み込みしてください。";
+            }
         }
         init();
 
@@ -48,7 +55,7 @@
             const file = e.target.files[0];
             if (!file) return;
             
-            status.innerText = "人物を抽出中...";
+            status.innerText = "漢たちの涙に合わせて人物を召喚中...";
             const reader = new FileReader();
             reader.onload = (event) => {
                 const userImg = new Image();
@@ -59,11 +66,12 @@
         });
 
         async function process(userImg) {
+            // キャンバスサイズをテンプレートに固定
             canvas.width = template.width;
             canvas.height = template.height;
             canvas.style.display = 'inline-block';
 
-            // 1. 人物切り抜き
+            // 1. 人物の切り抜き実行
             const segmentation = await net.segmentPerson(userImg);
             const maskCanvas = document.createElement('canvas');
             maskCanvas.width = userImg.width;
@@ -74,30 +82,34 @@
             const imgData = mCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
             for (let i = 0; i < segmentation.data.length; i++) {
                 if (segmentation.data[i] === 0) {
-                    imgData.data[i * 4 + 3] = 0; // 背景を透明に
+                    imgData.data[i * 4 + 3] = 0; // 背景を完全透明化
                 }
             }
             mCtx.putImageData(imgData, 0, 0);
 
-            // 2. 描画
-            ctx.drawImage(template, 0, 0);
+            // 2. 描画開始
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(template, 0, 0); // まず背景を描画
 
             const offscreen = document.createElement('canvas');
             offscreen.width = canvas.width;
             offscreen.height = canvas.height;
             const oCtx = offscreen.getContext('2d');
 
-            // 劇画エフェクト
-            oCtx.filter = 'grayscale(100%) contrast(400%) brightness(85%)';
+            // --- 劇画エフェクト (人物を大きく、質感を強く) ---
+            oCtx.filter = 'grayscale(100%) contrast(450%) brightness(95%)';
             
-            const drawW = canvas.width * 0.55;
+            // ★サイズ調整: 画面幅の85%まで拡大
+            const drawW = canvas.width * 0.85;
             const drawH = (userImg.height / userImg.width) * drawW;
             const drawX = (canvas.width - drawW) / 2;
-            const drawY = canvas.height * 0.12;
+            
+            // ★位置調整: 空の低め（群衆に近い位置）に配置
+            const drawY = canvas.height * 0.32;
 
             oCtx.drawImage(maskCanvas, drawX, drawY, drawW, drawH);
 
-            // 網点
+            // --- 網点（スクリーントーン）加工 ---
             oCtx.globalCompositeOperation = 'multiply';
             const pCanvas = document.createElement('canvas');
             pCanvas.width = 3; pCanvas.height = 3;
@@ -107,19 +119,22 @@
             oCtx.fillStyle = oCtx.createPattern(pCanvas, 'repeat');
             oCtx.fillRect(drawX, drawY, drawW, drawH);
 
-            // 合成
+            // --- 最終合成: 不透明度65%の幻影として重ねる ---
             ctx.globalAlpha = 0.65;
             ctx.drawImage(offscreen, 0, 0);
             ctx.globalAlpha = 1.0;
 
-            status.innerText = "完成！";
+            status.innerText = "完成！漢たちが偲んでいます";
             downloadBtn.style.display = 'block';
+            
+            // 生成後に画面を少しスクロール
+            window.scrollTo({ top: 300, behavior: 'smooth' });
         }
 
         downloadBtn.onclick = () => {
             const link = document.createElement('a');
-            link.download = 'memorial.png';
-            link.href = canvas.toDataURL();
+            link.download = 'memorial_gekiga.png';
+            link.href = canvas.toDataURL('image/png');
             link.click();
         };
     </script>
