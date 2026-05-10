@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>在りし日の幻影メーカー</title>
+    <style>
+        body { background: #111; color: white; text-align: center; font-family: "Helvetica Neue", Arial, sans-serif; margin: 0; padding: 20px; }
+        h1 { font-size: 1.2rem; margin-bottom: 20px; color: #ccc; }
+        canvas { max-width: 100%; height: auto; border: 2px solid #333; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .controls { background: #222; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        input[type="file"] { margin-bottom: 10px; }
+        #downloadBtn { display: none; margin: 20px auto; padding: 12px 24px; background: #fff; color: #000; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        #downloadBtn:hover { background: #ddd; }
+    </style>
+</head>
+<body>
+    <h1>在りし日の幻影メーカー</h1>
+    
+    <div class="controls">
+        <p>偲びたい人の写真をアップロードしてください</p>
+        <input type="file" id="upload" accept="image/*">
+    </div>
+
+    <canvas id="mainCanvas"></canvas>
+    <button id="downloadBtn">画像を保存する</button>
+
+    <script>
+        const upload = document.getElementById('upload');
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        // 1. テンプレート背景の読み込み
+        const template = new Image();
+        template.src = 'template.png'; // さっき保存した画像
+
+        upload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const userImg = new Image();
+                userImg.onload = () => generateSynthesis(userImg);
+                userImg.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        function generateSynthesis(userImg) {
+            // キャンバスサイズをテンプレートに合わせる
+            canvas.width = template.width;
+            canvas.height = template.height;
+
+            // ステップ1: 背景を描画
+            ctx.drawImage(template, 0, 0);
+
+            // ステップ2: ユーザー画像を劇画加工するための作業用Canvas
+            const offscreen = document.createElement('canvas');
+            const oCtx = offscreen.getContext('2d');
+            offscreen.width = canvas.width;
+            offscreen.height = canvas.height;
+
+            // --- 劇画調エフェクト (コントラスト最強 & モノクロ) ---
+            oCtx.filter = 'grayscale(100%) contrast(400%) brightness(90%)';
+            
+            // 配置計算 (空の中央、少し縦長に配置)
+            const drawW = canvas.width * 0.55;
+            const drawH = drawW * 1.3;
+            const drawX = (canvas.width - drawW) / 2;
+            const drawY = canvas.height * 0.12; // 空の絶妙な位置
+
+            oCtx.drawImage(userImg, drawX, drawY, drawW, drawH);
+
+            // --- スクリーントーン風（網点）の合成 ---
+            oCtx.globalCompositeOperation = 'multiply';
+            const patternCanvas = document.createElement('canvas');
+            const pCtx = patternCanvas.getContext('2d');
+            patternCanvas.width = 3; patternCanvas.height = 3;
+            pCtx.fillStyle = '#bbb'; // 網点の色
+            pCtx.fillRect(0,0,1,1);
+            const pattern = oCtx.createPattern(patternCanvas, 'repeat');
+            oCtx.fillStyle = pattern;
+            oCtx.fillRect(drawX, drawY, drawW, drawH);
+
+            // ステップ3: メインCanvasに「不透明度65%」で重ねる
+            ctx.globalAlpha = 0.65;
+            ctx.drawImage(offscreen, 0, 0);
+            ctx.globalAlpha = 1.0; // リセット
+
+            downloadBtn.style.display = 'block';
+        }
+
+        downloadBtn.onclick = () => {
+            const link = document.createElement('a');
+            link.download = 'memorial_photo.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        };
+    </script>
+</body>
+</html>
