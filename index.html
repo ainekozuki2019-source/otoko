@@ -2,18 +2,39 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>在りし日の幻影メーカー</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix"></script>
     <style>
-        body { background: #111; color: white; text-align: center; font-family: sans-serif; margin: 0; padding: 20px; }
+        body { background: #111; color: white; text-align: center; font-family: sans-serif; margin: 0; padding: 10px; }
         .controls { background: #222; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #333; }
         canvas { max-width: 100%; height: auto; border: 2px solid #333; display: none; box-shadow: 0 0 30px rgba(0,0,0,0.8); }
-        #status { margin: 15px; color: #00ff00; font-weight: bold; font-size: 0.9rem; }
-        input[type="file"] { margin: 10px 0; }
-        #downloadBtn { display: none; margin: 20px auto; padding: 15px 30px; background: #fff; color: #000; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 1rem; }
-        #downloadBtn:hover { background: #ccc; }
+        #status { margin: 15px; color: #00ff00; font-weight: bold; font-size: 0.9rem; min-height: 1.2em; }
+        .file-upload-label {
+            display: inline-block;
+            padding: 15px 25px;
+            background: #444;
+            color: #fff;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            border: 2px solid #666;
+        }
+        input[type="file"] { display: none; }
+        #downloadBtn { 
+            display: none; 
+            margin: 20px auto; 
+            padding: 15px 30px; 
+            background: #fff; 
+            color: #000; 
+            border: none; 
+            border-radius: 5px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            font-size: 1.1rem;
+            width: 80%;
+        }
     </style>
 </head>
 <body>
@@ -21,7 +42,10 @@
     
     <div class="controls">
         <div id="status">AI準備中... (数秒かかります)</div>
-        <input type="file" id="upload" accept="image/*" disabled>
+        <label class="file-upload-label" id="uploadLabel" style="opacity: 0.5; pointer-events: none;">
+            📸 写真を撮る / 選ぶ
+            <input type="file" id="upload" accept="image/*" capture="camera">
+        </label>
     </div>
 
     <canvas id="mainCanvas"></canvas>
@@ -30,6 +54,7 @@
 
     <script>
         const upload = document.getElementById('upload');
+        const uploadLabel = document.getElementById('uploadLabel');
         const canvas = document.getElementById('mainCanvas');
         const ctx = canvas.getContext('2d');
         const status = document.getElementById('status');
@@ -42,10 +67,11 @@
         async function init() {
             try {
                 net = await bodyPix.load();
-                status.innerText = "準備完了！写真をアップロードしてください";
-                upload.disabled = false;
+                status.innerText = "準備完了！";
+                uploadLabel.style.opacity = "1.0";
+                uploadLabel.style.pointerEvents = "auto";
             } catch (e) {
-                status.innerText = "AIの読み込みに失敗しました。再読み込みしてください。";
+                status.innerText = "エラー: 再読み込みしてください";
             }
         }
         init();
@@ -54,7 +80,7 @@
             const file = e.target.files[0];
             if (!file) return;
             
-            status.innerText = "漢たちの涙に合わせて人物を召喚中...";
+            status.innerText = "漢たちの空へ召喚中...";
             const reader = new FileReader();
             reader.onload = (event) => {
                 const userImg = new Image();
@@ -69,7 +95,6 @@
             canvas.height = template.height;
             canvas.style.display = 'inline-block';
 
-            // 1. 人物切り抜き
             const segmentation = await net.segmentPerson(userImg);
             const maskCanvas = document.createElement('canvas');
             maskCanvas.width = userImg.width;
@@ -85,7 +110,6 @@
             }
             mCtx.putImageData(imgData, 0, 0);
 
-            // 2. 描画
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(template, 0, 0);
 
@@ -94,20 +118,16 @@
             offscreen.height = canvas.height;
             const oCtx = offscreen.getContext('2d');
 
-            // 劇画エフェクト
             oCtx.filter = 'grayscale(100%) contrast(450%) brightness(95%)';
             
-            // サイズ調整: 画面幅の85%
+            // レイアウト設定: 画面幅85% / 上から5%の位置
             const drawW = canvas.width * 0.85;
             const drawH = (userImg.height / userImg.width) * drawW;
             const drawX = (canvas.width - drawW) / 2;
-            
-            // ★位置調整: 上から5%の位置に修正
             const drawY = canvas.height * 0.05;
 
             oCtx.drawImage(maskCanvas, drawX, drawY, drawW, drawH);
 
-            // 網点加工
             oCtx.globalCompositeOperation = 'multiply';
             const pCanvas = document.createElement('canvas');
             pCanvas.width = 3; pCanvas.height = 3;
@@ -117,14 +137,12 @@
             oCtx.fillStyle = oCtx.createPattern(pCanvas, 'repeat');
             oCtx.fillRect(drawX, drawY, drawW, drawH);
 
-            // 最終合成: 不透明度65%
             ctx.globalAlpha = 0.65;
             ctx.drawImage(offscreen, 0, 0);
             ctx.globalAlpha = 1.0;
 
             status.innerText = "完成！";
             downloadBtn.style.display = 'block';
-            
             window.scrollTo({ top: 300, behavior: 'smooth' });
         }
 
